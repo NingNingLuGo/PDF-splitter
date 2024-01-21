@@ -41,6 +41,21 @@ def insert_data(name, age):
     cursor.close()
     connection.close()
 
+def fetch_data():
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    select_query = '''
+    SELECT * FROM info_table
+    '''
+
+    cursor.execute(select_query)
+    data = cursor.fetchall()
+    cursor.close()
+    connection.close()
+
+    return data
+
 def main():
     st.title("Login Form")
 
@@ -50,6 +65,10 @@ def main():
     if st.button("Submit"):
         insert_data(name, age)
         st.success("Data inserted successfully!")
+
+    st.title("Table Data")
+    table_data = fetch_data()
+    st.table(table_data)
 
 if __name__ == '__main__':
     create_table()
