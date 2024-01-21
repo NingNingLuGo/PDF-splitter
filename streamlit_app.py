@@ -1,5 +1,6 @@
 import streamlit as st
 import mysql.connector
+import pandas as pd
 
 db_config = {
     'host': 'db4free.net',
@@ -56,19 +57,53 @@ def fetch_data():
 
     return data
 
+def delete_row(row_id):
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    delete_query = '''
+    DELETE FROM info_table WHERE id = %s
+    '''
+    values = (row_id,)
+    cursor.execute(delete_query, values)
+    connection.commit()
+    cursor.close()
+    connection.close()
+
 def main():
+    
+    st.title("Table Data")
+
+    # 获取数据
+    table_data = fetch_data()
+
+    # 将数据转换为Pandas DataFrame
+    df = pd.DataFrame(table_data, columns=['Name', 'Age', 'ID'])
+
+    # 在Streamlit中显示DataFrame
+    st.dataframe(df)
     st.title("Login Form")
 
     name = st.text_input("Name")
-    age = st.number_input("Age")
+    age = st.number_input("Age", value=0, min_value=0, step=1, format="%d")
 
     if st.button("Submit"):
         insert_data(name, age)
         st.success("Data inserted successfully!")
 
-    st.title("Table Data")
-    table_data = fetch_data()
-    st.table(table_data)
+        # 刷新应用
+        st.rerun()
+
+    # 删除行
+    selected_id = st.number_input("Enter the ID of the row to delete", value=0, min_value=0, max_value=df['ID'].max(), step=1, format="%d")
+    
+    if st.button("Delete Row"):
+        delete_row(selected_id)
+        st.success("Row deleted successfully!")
+
+        # 刷新应用
+        st.rerun()
+
 
 if __name__ == '__main__':
     create_table()
