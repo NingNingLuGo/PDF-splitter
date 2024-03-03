@@ -1,110 +1,61 @@
+import requests
+import plotly.graph_objects as go
 import streamlit as st
-import mysql.connector
-import pandas as pd
 
-db_config = {
-    'host': 'db4free.net',
-    'user': 'faeng_123',
-    'password': 'xwTfB1fz4i',
-    'database': 'faeng_123'
-}
+# 设置API密钥
+api_id = 26672685
+app_secret = '3TCRNDEk'
 
-def create_connection():
-    return mysql.connector.connect(**db_config)
+# 创建一个输入框，让用户输入城市名称
+user_city = st.text_input("请输入城市名称：", "苏州")
 
-def create_table():
-    connection = create_connection()
-    cursor = connection.cursor()
+# 当用户输入城市名称后，构造API请求URL
+url = f"https://v1.yiketianqi.com/free/week?unescape=1&appid={api_id}&appsecret={app_secret}&city={user_city}"
 
-    table_query = '''
-    CREATE TABLE IF NOT EXISTS info_table (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        age INT NOT NULL
+# 发送API请求并获取响应数据
+response = requests.get(url)
+data = response.json()
+
+dates = [item['date'] for item in data['data']]
+tem_day = [int(item['tem_day']) for item in data['data']]
+tem_night = [int(item['tem_night']) for item in data['data']]
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=dates, y=tem_day, mode='lines+markers', name='Day Temperature'))
+fig.add_trace(go.Scatter(x=dates, y=tem_night, mode='lines+markers', name='Night Temperature'))
+
+# 添加数据点的标签
+for i, date in enumerate(dates):
+    fig.add_annotation(
+        x=date,
+        y=tem_day[i],
+        text=f"{tem_day[i]}°C",
+        showarrow=False,
+        font=dict(
+            size=12,
+            color="Black"
+        ),
+        xanchor='right',
+        yanchor='bottom',
+        bgcolor="White",
+        opacity=0.8
     )
-    '''
+    fig.add_annotation(
+        x=date,
+        y=tem_night[i],
+        text=f"{tem_night[i]}°C",
+        showarrow=False,
+        font=dict(
+            size=12,
+            color="Black"
+        ),
+        xanchor='right',
+        yanchor='top',
+        bgcolor="White",
+        opacity=0.8
+    )
 
-    cursor.execute(table_query)
-    connection.commit()
-    cursor.close()
-    connection.close()
+fig.update_layout(title='Weather Forecast', xaxis_title='Date', yaxis_title='Temperature (°C)')
 
-def insert_data(name, age):
-    connection = create_connection()
-    cursor = connection.cursor()
-
-    insert_query = '''
-    INSERT INTO info_table (name, age) VALUES (%s, %s)
-    '''
-    values = (name, age)
-    cursor.execute(insert_query, values)
-    connection.commit()
-    cursor.close()
-    connection.close()
-
-def fetch_data():
-    connection = create_connection()
-    cursor = connection.cursor()
-
-    select_query = '''
-    SELECT * FROM info_table
-    '''
-
-    cursor.execute(select_query)
-    data = cursor.fetchall()
-    cursor.close()
-    connection.close()
-
-    return data
-
-def delete_row(row_id):
-    connection = create_connection()
-    cursor = connection.cursor()
-
-    delete_query = '''
-    DELETE FROM info_table WHERE id = %s
-    '''
-    values = (row_id,)
-    cursor.execute(delete_query, values)
-    connection.commit()
-    cursor.close()
-    connection.close()
-
-def main():
-    
-    st.title("Table Data")
-
-    # 获取数据
-    table_data = fetch_data()
-
-    # 将数据转换为Pandas DataFrame
-    df = pd.DataFrame(table_data, columns=['Name', 'Age', 'ID'])
-
-    # 在Streamlit中显示DataFrame
-    st.dataframe(df)
-    st.title("Login Form")
-
-    name = st.text_input("Name")
-    age = st.number_input("Age", value=0, min_value=0, step=1, format="%d")
-
-    if st.button("Submit"):
-        insert_data(name, age)
-        st.success("Data inserted successfully!")
-
-        # 刷新应用
-        st.rerun()
-
-    # 删除行
-    selected_id = st.number_input("Enter the ID of the row to delete", value=0, min_value=0, max_value=df['ID'].max(), step=1, format="%d")
-    
-    if st.button("Delete Row"):
-        delete_row(selected_id)
-        st.success("Row deleted successfully!")
-
-        # 刷新应用
-        st.rerun()
-
-
-if __name__ == '__main__':
-    create_table()
-    main()
+# 使用Streamlit的plotly_chart函数来显示图表
+st.plotly_chart(fig)
