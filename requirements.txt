@@ -1,3 +1,5 @@
 streamlit
-requests
+tushare
+numpy
+pandas
 plotly
