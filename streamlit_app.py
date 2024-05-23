@@ -1,54 +1,100 @@
-# 导入所需的库
-import tushare as ts
-import numpy as np
-import pandas as pd
 import streamlit as st
-import plotly.express as px
+from pyecharts.charts import Kline
+from pyecharts import options as opts
+from pyecharts.faker import Faker
+import pandas as pd
+import tushare as ts
+from pyecharts.charts import Line
 
-# 填入tushare的token
-pro = ts.pro_api('937bd93c07d2b4f44bdbb7982e57148fa710ba291abdd00aace96edf')
 
-# 定义一个股票代码的列表
-stock_codes = ['601318.SH', '600036.SH', '600519.SH']
+# 设置tushare的token，需要先去tushare官网注册获取
+ts.set_token('937bd93c07d2b4f44bdbb7982e57148fa710ba291abdd00aace96edf')
 
-# 定义一个空的列表来存储DataFrame
-data_list = []
+# 获取股票数据
+def get_stock_data(stock_code, start_date, end_date):
+    pro = ts.pro_api()
+    df_stock = pro.daily(ts_code=stock_code, start_date=start_date, end_date=end_date)
+    return df_stock
 
-# 遍历股票代码列表，通过tushare api获取股票数据
-for stock in stock_codes:
-    data = pro.daily(ts_code=stock)
-    data_list.append(data)
+# 创建一个示例的K线图
+def kline_chart(df):
+    dates = df.index.strftime('%Y-%m-%d').tolist()
+    data = df[['open', 'close', 'low', 'high']].values.tolist()
 
-# 按行合并数据
-combined_data = pd.concat(data_list)
+    # 计算5日和10日的移动平均线
+    df['MA5'] = df['close'].rolling(window=5).mean()
+    df['MA10'] = df['close'].rolling(window=10).mean()
+    df['MA30'] = df['close'].rolling(window=30).mean()
 
-# 重置索引
-combined_data = combined_data.reset_index(drop=True)
+    kline = (
+        Kline()
+        .add_xaxis(dates)
+        .add_yaxis("K线图", data)
+        .set_global_opts(
+            xaxis_opts=opts.AxisOpts(is_scale=True),
+            yaxis_opts=opts.AxisOpts(is_scale=True),
+            title_opts=opts.TitleOpts(title="K线图示例"),
+        )
+    )
 
-# 增加'company'列
-combined_data['company'] = np.nan
+    line = (
+        Line()
+        .add_xaxis(xaxis_data=dates)
+        .add_yaxis(
+            series_name="MA5",
+            y_axis=df['MA5'],
+            is_smooth=True,
+            linestyle_opts=opts.LineStyleOpts(width=2),
+            label_opts=opts.LabelOpts(is_show=False),
+            is_symbol_show=False
+        )
+        .add_yaxis(
+            series_name="MA10",
+            y_axis=df['MA10'],
+            is_smooth=True,
+            linestyle_opts=opts.LineStyleOpts(width=2),
+            label_opts=opts.LabelOpts(is_show=False),
+            is_symbol_show=False
+        )
+        .add_yaxis(
+            series_name="MA30",
+            y_axis=df['MA30'],
+            is_smooth=True,
+            linestyle_opts=opts.LineStyleOpts(width=2),
+            label_opts=opts.LabelOpts(is_show=False),
+            is_symbol_show=False
+        )
+    )
 
-# 设置字典，提供股票代码和公司名称的映射关系
-company_dict = {'601318.SH':'中国平安','600036.SH':'招商银行','600519.SH':'茅台集团'}
+    kline.overlap(line)
 
-# 遍历字典，将对应的公司名称填入'company'列
-for key in company_dict:
-    combined_data.loc[combined_data['ts_code']==key, 'company'] = company_dict[key]
+    return kline
 
-# 将'trade_date'设置为日期时间格式
-combined_data['trade_date'] = pd.to_datetime(combined_data['trade_date'])
 
-# 创建Streamlit应用
-st.title('股票收盘价图表')
+# Streamlit应用程序
+def main():
+    st.title('K线图展示')
 
-# 添加按钮选择log或linear
-y_axis_type = st.radio("Y轴类型:", ['log', 'linear'])
+    stock_code = st.text_input('请输入股票代码（例如：600519.SH）')
+    start_date = st.date_input('开始日期')
+    end_date = st.date_input('结束日期')
 
-# 绘制股票收盘价的图表
-fig = px.line(combined_data, x='trade_date', y='close', color='company', title='股票收盘价')
-if y_axis_type == 'log':
-    fig.update_yaxes(type='log')
-else:
-    fig.update_yaxes(type='linear')
+    data = None  # 初始化 data 变量
 
-st.plotly_chart(fig)
+    if st.button('获取数据'):
+        if stock_code:
+            data = get_stock_data(stock_code, start_date.strftime('%Y%m%d'), end_date.strftime('%Y%m%d'))
+            #st.write(data)
+            data = data.set_index('trade_date')
+            data.index = pd.to_datetime(data.index)
+
+
+    if data is not None:  # 只有在 data 不为 None 时才调用 kline_chart 函数
+        kline = kline_chart(data)
+        kline.render("kline.html")  # 将图表保存为HTML文件
+
+        st.write("K线图示例：")
+        st.components.v1.html(open("kline.html").read(), width=800, height=600)
+
+if __name__ == '__main__':
+    main()
